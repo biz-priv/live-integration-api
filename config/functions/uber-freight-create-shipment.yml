@@ -16,7 +16,7 @@ function:
   package:
     patterns:
       - '!**/*'
-      - 'src/uber-freight/create-shipment/**'
+      - 'src/uber-freight/create-shipment.js/**'
 
   environment:
     STAGE: ${self:provider.stage}
