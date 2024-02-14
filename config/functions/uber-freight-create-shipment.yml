@@ -8,10 +8,10 @@ function:
     - !Ref NodeModulesLambdaLayer
 
   events:
-    http:
-      path: shipment/create
-      method: post
-      private: true
+    - http:
+        path: shipment/create
+        method: post
+        private: true
 
   package:
     patterns:
