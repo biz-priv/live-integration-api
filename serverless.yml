@@ -8,11 +8,14 @@ provider:
   tags: ${self:custom.tags}
   stackTags: ${self:custom.tags}
   runtime: nodejs18.x
-  vpc:
-    securityGroupIds:
-      - ${ssm:/omni-dw/${self:provider.stage}/lambda/sgId}
-    subnetIds:
-      - ${ssm:/omni-dw/${self:provider.stage}/lambda/subnetA}
+  apiGateway:
+    apiKeys:
+      - live-integrations-api-${self:provider.stage}
+  # vpc:
+  #   securityGroupIds:
+  #     - ${ssm:/omni-dw/${self:provider.stage}/lambda/sgId}
+  #   subnetIds:
+  #     - ${ssm:/omni-dw/${self:provider.stage}/lambda/subnetA}
   iamRoleStatements:
     - Effect: 'Allow'
       Action:
@@ -34,19 +37,37 @@ provider:
         - dynamodb:Query
         - dynamodb:DeleteItem
         - dynamodb:Scan
+        - ssm:GetParameter
+        - acm:ListCertificates
+        - cloudformation:GET
+        - cloudfront:UpdateDistribution
+        - route53:ListHostedZones
+        - route53:ChangeResourceRecordSets
+        - route53:GetHostedZone
+        - route53:ListResourceRecordSets
       Resource: '*'
   environment:
     REGION: ${self:custom.region}
     STAGE: ${opt:stage, 'dev'}
-    SNS_TOPIC_ARN: ${ssm:/omni-reports/${self:provider.stage}/error-notification/sns/arn}
+    # SNS_TOPIC_ARN: ${ssm:/omni-reports/${self:provider.stage}/error-notification/sns/arn}
 
   deploymentBucket:
-    name: ${ssm:/omni-dw/${self:provider.stage}/sls/deployment/bucket}
+    name: ${ssm:sls-deployment-bucket-${self:custom.stage}}
     serverSideEncryption: AES256
+plugins:
+  - serverless-domain-manager
 
 custom:
   region: ${opt:region, 'us-east-1'}
   stage: ${opt:stage, 'dev'}
+  customDomain:
+    domainName: ${file(config/domains/${self:provider.stage}.yml):domainName}
+    createRoute53Record: true
+    basePath: ''
+    securityPolicy: tls_1_2
+    apiType: rest
+    stage: ${self:provider.stage}
+    certificateArn: ${file(config/domains/${self:provider.stage}.yml):certificateArn}
   tags:
     Application: LiveIntegrationApi
     CreateBy: BizCloudExperts
@@ -54,9 +75,6 @@ custom:
 
 package:
   individually: true
-
-functions:
-  uber-freight-create-shipment: ${file(config/functions/uber-freight-create-shipment.yml):function}
 
 layers:
   NodeModules:
@@ -66,3 +84,9 @@ layers:
     compatibleRuntimes:
       - nodejs18.x
     retain: false
+
+functions:
+  uber-freight-create-shipment: ${file(config/functions/uber-freight-create-shipment.yml):function}
+resources:
+  Resources:
+    UberFreightCreateShipmentLogTable: ${file(config/dynamoDB/uber-freight-ceate-shipment-log-table.yml):uberFreightCreateShipmentLogtable}

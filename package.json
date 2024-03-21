@@ -29,9 +29,9 @@
   "dependencies": {
     "aws-sdk": "^2.1557.0",
     "axios": "^1.6.7",
+    "date-fns": "^3.3.1",
     "joi": "^17.12.1",
     "lodash": "^4.17.21",
-    "moment-timezone": "^0.5.45",
     "serverless": "^3.38.0"
   },
   "devDependencies": {
@@ -42,6 +42,7 @@
     "eslint-plugin-import": "^2.29.1",
     "git-list-updated": "^1.2.1",
     "husky": "^8.0.0",
-    "prettier": "^3.1.1"
+    "prettier": "^3.1.1",
+    "serverless-domain-manager": "^7.3.6"
   }
 }
