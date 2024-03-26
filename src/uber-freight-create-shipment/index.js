@@ -62,6 +62,7 @@ module.exports.handler = async (event) => {
         const cityName = get(stop, 'location.address.city');
         const state = get(stop, 'location.address.state');
         const zipCode = get(stop, 'location.address.zip');
+        const country = get(stop, 'location.address.country');
         return {
           __type: 'stop',
           __name: 'stops',
@@ -77,7 +78,14 @@ module.exports.handler = async (event) => {
           status: 'A',
           requested_service: false,
           prior_uncleared_stops: false,
-          location_id: await getLocationIdFromLive({ name, address1, cityName, state, zipCode }),
+          location_id: await getLocationIdFromLive({
+            name,
+            address1,
+            cityName,
+            state,
+            zipCode,
+            country,
+          }),
           stopNotes: get(stop, 'comments', []).map((comment) => ({
             __name: 'stopNotes',
             __type: 'stop_note',
@@ -135,10 +143,18 @@ module.exports.handler = async (event) => {
   }
 };
 
-async function getLocationIdFromLive({ name, address1, address2 = '', cityName, state, zipCode }) {
+async function getLocationIdFromLive({
+  name,
+  address1,
+  address2 = '',
+  cityName,
+  state,
+  zipCode,
+  country,
+}) {
   try {
     let locationId = '';
-    locationId = await getLocationId({ name, address1, address2, cityName, state, zipCode });
+    locationId = await getLocationId({ name, address1, address2, state });
     console.info('🙂 -> file: index.js:89 -> getLocationIdFromLive -> locationId:', locationId);
     if (!locationId) {
       const data = {
@@ -152,7 +168,7 @@ async function getLocationIdFromLive({ name, address1, address2 = '', cityName, 
         state,
         zip_code: zipCode,
       };
-      locationId = await createLocation(data);
+      locationId = await createLocation({ data, country });
     }
     if (!locationId) {
       throw new Error('Error in creating location');

@@ -1,8 +1,19 @@
 'use strict';
-const { format } = require('date-fns');
+const moment = require('moment-timezone');
 
 function getFormattedTimestamp(timestamp) {
-  return format(timestamp, 'yyyyMMddHHmmssxx');
+  const cstOffset = getNormalizeOffset(timestamp, 'America/Chicago');
+  console.info('🙂 -> file: helper.js:6 -> getFormattedTimestamp -> cstOffset:', cstOffset);
+  return moment(timestamp).format('YYYYMMDDHHmmss') + cstOffset;
+}
+
+function getNormalizeOffset(timestamp, timezone) {
+  try {
+    return moment.tz(timestamp, 'YYYY-MM-DD HH:mm', timezone).format('ZZ');
+  } catch (error) {
+    console.error(error);
+    throw error;
+  }
 }
 
 function getExpirationTimestamp(days) {
