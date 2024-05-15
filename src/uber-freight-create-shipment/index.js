@@ -1,8 +1,8 @@
 'use strict';
 
-const { get, filter, toUpper } = require('lodash');
+const { get, filter, toUpper, set } = require('lodash');
 const livePayloadOriginal = require('./livePayload.json');
-const { getLocationId, createLocation, sendPayload } = require('./apis');
+const { getLocationId, createLocation, sendPayload, updateOrders } = require('./apis');
 const {
   getFormattedTimestamp,
   getExpirationTimestamp,
@@ -33,12 +33,14 @@ module.exports.handler = async (event) => {
     console.info('🙂 -> file: index.js:24 -> module.exports.handler= -> uberEqType:', uberEqType);
     const mcEqType = get(equipmentTypeMapping, uberEqType, 'O');
     console.info('🙂 -> file: index.js:26 -> module.exports.handler= -> mcEqType:', mcEqType);
-    logData.FreightId = String(get(uberPayload, 'financialParties[0].freightId'));
+    const id = get(uberPayload, 'modeExecution.id');
+    console.info('🙂 -> file: index.js:95 -> module.exports.handler= -> id:', id);
+    logData.FreightId = String(id);
     logData.UberFreightPayload = uberPayload;
     const livePayload = { ...livePayloadOriginal };
     livePayload.bill_distance_um = get(uberPayload, 'modeExecution.totalDistanceUOM');
     livePayload.commodity_id = get(uberPayload, 'modeExecution.freights[0].commodityCode');
-    livePayload.blnum = get(uberPayload, 'financialParties[0].freightId');
+    livePayload.blnum = id;
     livePayload.equipment_type_id = mcEqType;
     if (
       filter(
@@ -51,9 +53,46 @@ module.exports.handler = async (event) => {
     livePayload.high_value =
       parseInt(get(uberPayload, 'modeExecution.freightValue', 0), 10) > 100000;
     livePayload.order_value = parseInt(get(uberPayload, 'modeExecution.freightValue', 0), 10);
-    livePayload.pieces = parseInt(get(uberPayload, 'modeExecution.quantity', 0), 10);
+    livePayload.pieces = parseInt(get(uberPayload, 'modeExecution.handlingUnit', 0), 10);
     livePayload.weight = get(uberPayload, 'modeExecution.weight');
     livePayload.weight_um = get(uberPayload, 'modeExecution.weightUOM');
+
+    const billToName = get(uberPayload, 'tenderInformation.billToName', '')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .toUpperCase();
+    console.info(
+      '🙂 -> file: index.js:59 -> module.exports.handler= -> billToName:',
+      billToName,
+      'RR Donnelly'.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
+    );
+    let billToCustomer = '';
+    if (billToName.includes('RR Donnelley'.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())) {
+      billToCustomer = 'RRDOCHIL';
+    } else if (billToName.includes('U-Haul'.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())) {
+      billToCustomer = 'UHAU85AZ';
+    } else {
+      billToCustomer = 'placeholder';
+    }
+    console.info(
+      '🙂 -> file: index.js:66 -> module.exports.handler= -> billToCustomer:',
+      billToCustomer
+    );
+
+    const rates = get(uberPayload, 'financialParties[0].financialCharges', []).map(
+      (financialCharge) => ({
+        chargeCode: get(financialCharge, 'name'), // actual mapping will be provided by Thomas
+        rate: get(financialCharge, 'rate') * get(financialCharge, 'ratedQuantity'),
+      })
+    );
+    console.info('🙂 -> file: index.js:71 -> module.exports.handler= -> rates:', rates);
+    const supportInfos = get(uberPayload, 'modeExecution.supportInfos', [])
+      .filter((supportInfo) => get(supportInfo, 'value') === 'Y')
+      .map((supportInfo) => get(supportInfo, 'name'))
+      .join(', ');
+    console.info(
+      '🙂 -> file: index.js:93 -> module.exports.handler= -> supportInfos:',
+      supportInfos
+    );
 
     livePayload.stops = await Promise.all(
       get(uberPayload, 'modeExecution.stops', []).map(async (stop) => {
@@ -86,6 +125,17 @@ module.exports.handler = async (event) => {
             zipCode,
             country,
           }),
+          referenceNumbers: get(stop, 'contacts', []).map((contact) => ({
+            __type: 'reference_number',
+            __name: 'referenceNumbers',
+            company_id: 'TMS',
+            element_id: '128',
+            partner_id: 'TMS',
+            reference_number: get(contact, 'phoneNumber'),
+            reference_qual: get(contact, 'type'),
+            send_to_driver: true,
+            version: '004010',
+          })),
           stopNotes: get(stop, 'comments', []).map((comment) => ({
             __name: 'stopNotes',
             __type: 'stop_note',
@@ -106,12 +156,27 @@ module.exports.handler = async (event) => {
     );
 
     logData.LiVePayload = livePayload;
+    console.info(
+      '🙂 -> file: index.js:153 -> module.exports.handler= -> livePayload:',
+      livePayload
+    );
 
     const createShipmentRes = await sendCreateShipmentPayload({ payload: livePayload });
 
-    logData.LiVeResponse = createShipmentRes;
     logData.Status = statuses.SUCCESS;
     logData.Message = 'Shipment created succsfully.';
+
+    const movements = get(createShipmentRes, 'movements', []);
+    // Add "brokerage_status" to each movement
+    const updatedMovements = movements.map((movement) => ({
+      ...movement,
+      brokerage_status: 'NEWAPI',
+    }));
+    // Update the movements array in the response
+    set(createShipmentRes, 'movements', updatedMovements);
+
+    const updateResponse = await updateOrders({ payload: createShipmentRes });
+    logData.LiVeResponse = updateResponse;
 
     await dynamoInsert(LOG_TABLE, logData);
 
