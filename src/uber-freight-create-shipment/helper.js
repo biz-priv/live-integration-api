@@ -48,9 +48,25 @@ const equipmentTypeMapping = {
   DRYVAN: 'V',
 };
 
+const referenceNumberMapping = {
+  'PRIMARY REFERENCE': 'SI',
+  'PICKUP NUMBER': 'PU',
+  'PO NUMBER': 'PO',
+  'PRO NUMBER': 'CN',
+  'NAVIS IDENTIFICATION NUMBER': 'AO',
+  'SHIPMENT NUMBER': 'CR',
+};
+
+const chargeCodeMapping = {
+  60: 'Freight_charge',
+  19: 'FSP',
+};
+
 module.exports = {
   getFormattedTimestamp,
   getExpirationTimestamp,
   statuses,
   equipmentTypeMapping,
+  referenceNumberMapping,
+  chargeCodeMapping,
 };

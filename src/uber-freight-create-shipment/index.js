@@ -8,6 +8,8 @@ const {
   getExpirationTimestamp,
   statuses,
   equipmentTypeMapping,
+  referenceNumberMapping,
+  chargeCodeMapping,
 } = require('./helper');
 const { dynamoInsert } = require('../shared/dynamo');
 
@@ -80,19 +82,34 @@ module.exports.handler = async (event) => {
 
     const rates = get(uberPayload, 'financialParties[0].financialCharges', []).map(
       (financialCharge) => ({
-        chargeCode: get(financialCharge, 'name'), // actual mapping will be provided by Thomas
+        chargeCode: get(
+          chargeCodeMapping,
+          get(financialCharge, 'chargeTypeId'),
+          get(financialCharge, 'chargeTypeId')
+        ),
         rate: get(financialCharge, 'rate') * get(financialCharge, 'ratedQuantity'),
       })
     );
     console.info('🙂 -> file: index.js:71 -> module.exports.handler= -> rates:', rates);
+
+    livePayload.rates = rates;
+
     const supportInfos = get(uberPayload, 'modeExecution.supportInfos', [])
       .filter((supportInfo) => get(supportInfo, 'value') === 'Y')
-      .map((supportInfo) => get(supportInfo, 'name'))
-      .join(', ');
+      .map((supportInfo) => get(supportInfo, 'name'));
     console.info(
       '🙂 -> file: index.js:93 -> module.exports.handler= -> supportInfos:',
       supportInfos
     );
+
+    if (supportInfos.includes('LIFTGATE')) {
+      livePayload.planningComment = 'LG';
+    } else if (supportInfos.includes('INSIDE_DELIVERY')) {
+      livePayload.planningComment = 'DL';
+    }
+
+    const references = get(uberPayload, 'modeExecution.freights[0].references', []);
+    console.info('🙂 -> file: index.js:104 -> module.exports.handler= -> references:', references);
 
     livePayload.stops = await Promise.all(
       get(uberPayload, 'modeExecution.stops', []).map(async (stop) => {
@@ -102,6 +119,17 @@ module.exports.handler = async (event) => {
         const state = get(stop, 'location.address.state');
         const zipCode = get(stop, 'location.address.zip');
         const country = get(stop, 'location.address.country');
+        const referenceNumbers = references.map((ref) => ({
+          __type: 'reference_number',
+          __name: 'referenceNumbers',
+          company_id: 'TMS',
+          element_id: '128',
+          partner_id: 'TMS',
+          reference_number: get(ref, 'value'),
+          reference_qual: get(referenceNumberMapping, get(ref, 'name'), get(ref, 'name')),
+          send_to_driver: true,
+          version: '004010',
+        }));
         return {
           __type: 'stop',
           __name: 'stops',
@@ -125,17 +153,6 @@ module.exports.handler = async (event) => {
             zipCode,
             country,
           }),
-          referenceNumbers: get(stop, 'contacts', []).map((contact) => ({
-            __type: 'reference_number',
-            __name: 'referenceNumbers',
-            company_id: 'TMS',
-            element_id: '128',
-            partner_id: 'TMS',
-            reference_number: get(contact, 'phoneNumber'),
-            reference_qual: get(contact, 'type'),
-            send_to_driver: true,
-            version: '004010',
-          })),
           stopNotes: get(stop, 'comments', []).map((comment) => ({
             __name: 'stopNotes',
             __type: 'stop_note',
@@ -143,6 +160,7 @@ module.exports.handler = async (event) => {
             comment_type: 'DC',
             comments: get(comment, 'value'),
           })),
+          ...(get(stop, 'type') === 'PICKUP' && { referenceNumbers }),
         };
       })
     );
