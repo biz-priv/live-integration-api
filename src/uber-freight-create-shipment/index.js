@@ -10,6 +10,7 @@ const {
   equipmentTypeMapping,
   referenceNumberMapping,
   chargeCodeMapping,
+  getCustomerCode,
 } = require('./helper');
 const { dynamoInsert } = require('../shared/dynamo');
 
@@ -59,26 +60,14 @@ module.exports.handler = async (event) => {
     livePayload.weight = get(uberPayload, 'modeExecution.weight');
     livePayload.weight_um = get(uberPayload, 'modeExecution.weightUOM');
 
-    const billToName = get(uberPayload, 'tenderInformation.billToName', '')
-      .replace(/[^a-zA-Z0-9]/g, '')
-      .toUpperCase();
-    console.info(
-      '🙂 -> file: index.js:59 -> module.exports.handler= -> billToName:',
-      billToName,
-      'RR Donnelly'.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
-    );
-    let billToCustomer = '';
-    if (billToName.includes('RR Donnelley'.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())) {
-      billToCustomer = 'RRDOCHIL';
-    } else if (billToName.includes('U-Haul'.replace(/[^a-zA-Z0-9]/g, '').toUpperCase())) {
-      billToCustomer = 'UHAU85AZ';
-    } else {
-      billToCustomer = 'placeholder';
-    }
+    const billToCustomer = getCustomerCode(get(uberPayload, 'tenderInformation.billToName', ''));
+
     console.info(
       '🙂 -> file: index.js:66 -> module.exports.handler= -> billToCustomer:',
       billToCustomer
     );
+
+    livePayload.customer_id = billToCustomer;
 
     const rates = get(uberPayload, 'financialParties[0].financialCharges', []).map(
       (financialCharge) => ({
@@ -92,7 +81,29 @@ module.exports.handler = async (event) => {
     );
     console.info('🙂 -> file: index.js:71 -> module.exports.handler= -> rates:', rates);
 
-    livePayload.rates = rates;
+    const freightCharge = rates.filter((rate) => get(rate, 'chargeCode') === 'Freight_Charge')[0];
+    const otherCharges = rates
+      .filter((rate) => get(rate, 'chargeCode') !== 'Freight_Charge')
+      .map((charge, index) => ({
+        __type: 'other_charge',
+        __name: 'otherCharges',
+        company_id: 'TMS',
+        amount: get(charge, 'rate'),
+        amount_c: 'USD',
+        amount_n: get(charge, 'rate'),
+        amount_r: 1.0,
+        calc_method: 'F',
+        charge_id: get(charge, 'chargeCode'),
+        rate: get(charge, 'rate'),
+        sequence: index + 1,
+        units: 1.0,
+      }));
+
+    livePayload.freight_charge = get(freightCharge, 'rate');
+    livePayload.freight_charge_c = 'USD';
+    livePayload.freight_charge_n = get(freightCharge, 'rate');
+    livePayload.freight_charge_r = 1.0;
+    livePayload.otherCharges = otherCharges;
 
     const supportInfos = get(uberPayload, 'modeExecution.supportInfos', [])
       .filter((supportInfo) => get(supportInfo, 'value') === 'Y')
@@ -130,6 +141,17 @@ module.exports.handler = async (event) => {
           send_to_driver: true,
           version: '004010',
         }));
+        referenceNumbers.push({
+          __type: 'reference_number',
+          __name: 'referenceNumbers',
+          company_id: 'TMS',
+          element_id: '128',
+          partner_id: 'TMS',
+          reference_number: get(uberPayload, 'modeExecution.id', ''),
+          reference_qual: 'IT',
+          send_to_driver: true,
+          version: '004010',
+        });
         return {
           __type: 'stop',
           __name: 'stops',
@@ -178,7 +200,6 @@ module.exports.handler = async (event) => {
       '🙂 -> file: index.js:153 -> module.exports.handler= -> livePayload:',
       livePayload
     );
-
     const createShipmentRes = await sendCreateShipmentPayload({ payload: livePayload });
 
     logData.Status = statuses.SUCCESS;

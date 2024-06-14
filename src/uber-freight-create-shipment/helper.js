@@ -58,9 +58,25 @@ const referenceNumberMapping = {
 };
 
 const chargeCodeMapping = {
-  60: 'Freight_charge',
+  60: 'Freight_Charge',
   19: 'FSP',
 };
+
+function getCustomerCode(name) {
+  const customerName = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  console.info('🙂 -> file: helper.js:68 -> getCustomerCode -> customerName:', customerName);
+
+  if (customerName.includes('RRDONNELLEY')) {
+    return 'RRDOCHIL';
+  } else if (customerName.includes('UHAUL')) {
+    return 'UHAU85AZ';
+  } else if (customerName.includes('FIRSTBRANDS')) {
+    return 'FIRSCLOH';
+  } else if (customerName.includes('KIND')) {
+    return 'KINDFRTX';
+  }
+  return name;
+}
 
 module.exports = {
   getFormattedTimestamp,
@@ -69,4 +85,5 @@ module.exports = {
   equipmentTypeMapping,
   referenceNumberMapping,
   chargeCodeMapping,
+  getCustomerCode,
 };
