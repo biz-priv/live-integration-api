@@ -88,21 +88,20 @@ module.exports.handler = async (event) => {
         __type: 'other_charge',
         __name: 'otherCharges',
         company_id: 'TMS',
-        amount: get(charge, 'rate'),
+        amount: get(charge, 'rate').toFixed(2),
         amount_c: 'USD',
-        amount_n: get(charge, 'rate'),
+        amount_n: get(charge, 'rate').toFixed(2),
         amount_r: 1.0,
         calc_method: 'F',
         charge_id: get(charge, 'chargeCode'),
-        rate: get(charge, 'rate'),
+        rate: get(charge, 'rate').toFixed(2),
         sequence: index + 1,
         units: 1.0,
       }));
 
-    livePayload.freight_charge = get(freightCharge, 'rate');
-    livePayload.freight_charge_c = 'USD';
-    livePayload.freight_charge_n = get(freightCharge, 'rate');
-    livePayload.freight_charge_r = 1.0;
+    livePayload.freight_charge = get(freightCharge, 'rate').toFixed(2);
+    livePayload.freight_charge_n = get(freightCharge, 'rate').toFixed(2);
+    livePayload.rate = get(freightCharge, 'rate').toFixed(2);
     livePayload.otherCharges = otherCharges;
 
     const supportInfos = get(uberPayload, 'modeExecution.supportInfos', [])
@@ -147,7 +146,9 @@ module.exports.handler = async (event) => {
           company_id: 'TMS',
           element_id: '128',
           partner_id: 'TMS',
-          reference_number: get(uberPayload, 'modeExecution.id', ''),
+          reference_number: get(uberPayload, 'modeExecution.freights[0].references', []).filter(
+            (ref) => get(ref, 'name') === 'PRIMARY REFERENCE'
+          )[0]?.value,
           reference_qual: 'IT',
           send_to_driver: true,
           version: '004010',
