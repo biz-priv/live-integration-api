@@ -1,0 +1,30 @@
+function:
+  handler: src/uber-freight-create-shipment/index.handler
+  name: uber-freight-create-shipment-${self:provider.stage}
+  description: process and filters shipment apar table stream for 204 create shipment - ${self:provider.stage}
+  runtime: nodejs18.x
+  timeout: 28
+  layers:
+    - !Ref NodeModulesLambdaLayer
+
+  events:
+    - http:
+        path: shipment/create
+        method: post
+        private: true
+
+  package:
+    patterns:
+      - '!**/*'
+      - 'src/shared/**'
+      - 'src/uber-freight-create-shipment/**'
+
+  environment:
+    GET_LOC_URL: ${ssm:/live-api/${self:provider.stage}/get-location}
+    CREATE_LOC_URL: ${ssm:/live-api/${self:provider.stage}/create-location}
+    SEND_PAYLOAD_URL: ${ssm:/live-api/${self:provider.stage}/create-orders}
+    UPDATE_PAYLOAD_URL: ${ssm:/live-api/${self:provider.stage}/update-orders}
+    AUTH: ${ssm:/live-api/${self:provider.stage}/basic-auth}
+    LOG_TABLE: !Ref UberFreightCreateShipmentLogTable
+    FROM_EMAIL: ${ssm:/live-api/${self:provider.stage}/from-email}
+    TO_EMAIL: ${ssm:/live-api/${self:provider.stage}/to-email}

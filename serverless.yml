@@ -1,0 +1,94 @@
+service: live-integration-api
+
+provider:
+  name: aws
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  versionFunctions: false
+  tags: ${self:custom.tags}
+  stackTags: ${self:custom.tags}
+  runtime: nodejs18.x
+  apiGateway:
+    apiKeys:
+      - live-integrations-api-${self:provider.stage}
+  # vpc:
+  #   securityGroupIds:
+  #     - ${ssm:/omni-dw/${self:provider.stage}/lambda/sgId}
+  #   subnetIds:
+  #     - ${ssm:/omni-dw/${self:provider.stage}/lambda/subnetA}
+  iamRoleStatements:
+    - Effect: 'Allow'
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+        - ec2:CreateNetworkInterface
+        - ec2:DescribeNetworkInterfaces
+        - ec2:DetachNetworkInterface
+        - ec2:DeleteNetworkInterface
+        - ec2:AssignPrivateIpAddresses
+        - ec2:UnassignPrivateIpAddresses
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:GetItem
+        - dynamodb:Query
+        - dynamodb:DeleteItem
+        - dynamodb:Scan
+        - ssm:GetParameter
+        - acm:ListCertificates
+        - cloudformation:GET
+        - cloudfront:UpdateDistribution
+        - route53:ListHostedZones
+        - route53:ChangeResourceRecordSets
+        - route53:GetHostedZone
+        - route53:ListResourceRecordSets
+        - ses:SendRawEmail
+      Resource: '*'
+  environment:
+    REGION: ${self:custom.region}
+    STAGE: ${opt:stage, 'dev'}
+    # SNS_TOPIC_ARN: ${ssm:/omni-reports/${self:provider.stage}/error-notification/sns/arn}
+
+  deploymentBucket:
+    name: ${ssm:sls-deployment-bucket-${self:custom.stage}}
+    serverSideEncryption: AES256
+plugins:
+  - serverless-domain-manager
+  - serverless-offline
+
+custom:
+  region: ${opt:region, 'us-east-1'}
+  stage: ${opt:stage, 'dev'}
+  customDomain:
+    domainName: ${file(config/domains/${self:provider.stage}.yml):domainName}
+    createRoute53Record: true
+    basePath: ''
+    securityPolicy: tls_1_2
+    apiType: rest
+    stage: ${self:provider.stage}
+    certificateArn: ${file(config/domains/${self:provider.stage}.yml):certificateArn}
+  tags:
+    Application: LiveIntegrationApi
+    CreateBy: BizCloudExperts
+    Environment: ${self:custom.stage}
+
+package:
+  individually: true
+
+layers:
+  NodeModules:
+    path: lambdaLayer/lib
+    name: ${self:service}-layer-${self:provider.stage}
+    description: LiVe integration api lambda layer for all node modules - ${self:provider.stage}
+    compatibleRuntimes:
+      - nodejs18.x
+    retain: false
+
+functions:
+  uber-freight-create-shipment: ${file(config/functions/uber-freight-create-shipment.yml):function}
+resources:
+  Resources:
+    UberFreightCreateShipmentLogTable: ${file(config/dynamoDB/uber-freight-ceate-shipment-log-table.yml):uberFreightCreateShipmentLogtable}

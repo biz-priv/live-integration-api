@@ -1,0 +1,20 @@
+uberFreightCreateShipmentLogtable:
+  Type: AWS::DynamoDB::Table
+  Properties:
+    TableName: uber-freight-to-live-create-shipment-logs-${self:provider.stage}
+    AttributeDefinitions:
+      - AttributeName: FreightId
+        AttributeType: S
+      - AttributeName: Timestamp
+        AttributeType: S
+    KeySchema:
+      - AttributeName: FreightId
+        KeyType: HASH
+      - AttributeName: Timestamp
+        KeyType: RANGE
+    TimeToLiveSpecification:
+      AttributeName: Expiration
+      Enabled: true
+    ProvisionedThroughput:
+      ReadCapacityUnits: 1
+      WriteCapacityUnits: 1
