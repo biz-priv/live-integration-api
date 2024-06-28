@@ -45,6 +45,7 @@ provider:
         - route53:ChangeResourceRecordSets
         - route53:GetHostedZone
         - route53:ListResourceRecordSets
+        - ses:SendRawEmail
       Resource: '*'
   environment:
     REGION: ${self:custom.region}

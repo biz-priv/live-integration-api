@@ -3,7 +3,7 @@ function:
   name: uber-freight-create-shipment-${self:provider.stage}
   description: process and filters shipment apar table stream for 204 create shipment - ${self:provider.stage}
   runtime: nodejs18.x
-  timeout: 30
+  timeout: 28
   layers:
     - !Ref NodeModulesLambdaLayer
 
@@ -26,3 +26,5 @@ function:
     UPDATE_PAYLOAD_URL: ${ssm:/live-api/${self:provider.stage}/update-orders}
     AUTH: ${ssm:/live-api/${self:provider.stage}/basic-auth}
     LOG_TABLE: !Ref UberFreightCreateShipmentLogTable
+    FROM_EMAIL: ${ssm:/live-api/${self:provider.stage}/from-email}
+    TO_EMAIL: ${ssm:/live-api/${self:provider.stage}/to-email}

@@ -5,23 +5,28 @@ const livePayloadOriginal = require('./livePayload.json');
 const { getLocationId, createLocation, sendPayload, updateOrders } = require('./apis');
 const {
   getFormattedTimestamp,
-  getExpirationTimestamp,
+  // getExpirationTimestamp,
   statuses,
   equipmentTypeMapping,
   referenceNumberMapping,
   chargeCodeMapping,
   getCustomerCode,
+  getEmailBody,
+  getEmailSubject,
+  getExistingPayload,
+  getDifferentFields,
 } = require('./helper');
 const { dynamoInsert } = require('../shared/dynamo');
+const { sendMailWithoutAttachment } = require('../shared/helper');
 
-const { LOG_TABLE } = process.env;
+const { LOG_TABLE, FROM_EMAIL, TO_EMAIL } = process.env;
 
 const logData = {
-  FreightId: '',
+  FreightId: 'NULL',
   Timestamp: getFormattedTimestamp(new Date()),
-  Expiration: getExpirationTimestamp(7),
+  // Expiration: getExpirationTimestamp(7),
   UberFreightPayload: '',
-  LiVePayload: '',
+  LiVePayload: {},
   LiVeResponse: '',
   Status: '',
   Message: '',
@@ -201,10 +206,53 @@ module.exports.handler = async (event) => {
       '🙂 -> file: index.js:153 -> module.exports.handler= -> livePayload:',
       livePayload
     );
+    const existingItem = await getExistingPayload({ freightId: logData.FreightId });
+    console.info(
+      '🙂 -> file: index.js:219 -> module.exports.handler= -> existingItem:',
+      existingItem
+    );
+
+    const existingPayload = get(existingItem, 'LiVePayload', null);
+
+    if (existingPayload) {
+      const payloadDiffs = getDifferentFields({
+        currentPayload: livePayload,
+        previousPayload: existingPayload,
+      });
+      console.info(
+        '🙂 -> file: index.js:226 -> module.exports.handler= -> payloadDiffs:',
+        payloadDiffs
+      );
+
+      await sendMailWithoutAttachment({
+        html: getEmailBody({
+          uberPayload,
+          livePayload: logData.LiVePayload,
+          subjectLine: `A shipment is already created for the same Freight Id: <strong>${logData.FreightId}</strong>.`,
+          payloadDiffs,
+        }),
+        fromEmail: FROM_EMAIL,
+        toEmail: TO_EMAIL.split(','),
+        subject: getEmailSubject({ freightId: logData.FreightId, type: 'UPDATE' }),
+      });
+
+      return {
+        statusCode: 200,
+        body: JSON.stringify(
+          {
+            message: `A shipment is already exists for the same Blnum: ${logData.FreightId}. An email is sent to the operations for the updated fields.`,
+          },
+          null,
+          2
+        ),
+      };
+    }
+
     const createShipmentRes = await sendCreateShipmentPayload({ payload: livePayload });
 
     logData.Status = statuses.SUCCESS;
     logData.Message = 'Shipment created succsfully.';
+    logData.ShipmentId = get(createShipmentRes, 'id', '0');
 
     const movements = get(createShipmentRes, 'movements', []);
     // Add "brokerage_status" to each movement
@@ -234,7 +282,21 @@ module.exports.handler = async (event) => {
     console.info('🙂 -> file: index.js:16 -> module.exports.handler= -> err:', err);
     logData.Status = statuses.ERROR;
     logData.Message = get(err, 'message');
+
+    await sendMailWithoutAttachment({
+      html: getEmailBody({
+        uberPayload: logData.UberFreightPayload,
+        livePayload: logData.LiVePayload,
+        subjectLine: "There's an error while creating shipment in PowerBroker for UberFreight",
+        errorMessage: get(err, 'message'),
+      }),
+      fromEmail: FROM_EMAIL,
+      toEmail: TO_EMAIL.split(','),
+      subject: getEmailSubject({ freightId: logData.FreightId, type: 'ERROR' }),
+    });
+
     await dynamoInsert(LOG_TABLE, logData);
+
     return {
       statusCode: 400,
       body: JSON.stringify(
