@@ -1,0 +1,51 @@
+{
+  "name": "live-integration-api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint  --ignore-path .gitignore .",
+    "lint:updated": "pipe-git-updated --ext=js -- eslint --ignore-path .gitignore",
+    "prettier-check": "prettier -c \"**/*.{css,html,js,json,md,yaml,yml}\"",
+    "prettify": "prettier --write \"**/*.{css,html,js,json,md,yaml,yml}\"",
+    "prepare": "husky install",
+    "start": "sls offline --httpPort 4000 --noAuth --debug \"*\""
+  },
+  "author": "",
+  "license": "ISC",
+  "eslintConfig": {
+    "extends": "@serverless/eslint-config/node",
+    "root": true,
+    "rules": {
+      "no-console": "off",
+      "no-restricted-syntax": [
+        "error",
+        {
+          "selector": "CallExpression[callee.object.name='console'][callee.property.name!=/^(error|info)$/]",
+          "message": "Unexpected property on console object was called"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1557.0",
+    "axios": "^1.6.7",
+    "joi": "^17.12.1",
+    "lodash": "^4.17.21",
+    "moment-timezone": "^0.5.45",
+    "serverless": "^3.38.0",
+    "serverless-offline": "^13.5.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^18.4.4",
+    "@commitlint/config-conventional": "^18.4.4",
+    "@serverless/eslint-config": "^5.1.0",
+    "eslint": "^8.56.0",
+    "eslint-plugin-import": "^2.29.1",
+    "git-list-updated": "^1.2.1",
+    "husky": "^8.0.0",
+    "prettier": "^3.1.1",
+    "serverless-domain-manager": "^7.3.6"
+  }
+}
