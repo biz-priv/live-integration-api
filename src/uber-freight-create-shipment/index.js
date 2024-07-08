@@ -72,6 +72,30 @@ module.exports.handler = async (event) => {
       billToCustomer
     );
 
+    if (!billToCustomer) {
+      await sendMailWithoutAttachment({
+        html: getEmailBody({
+          uberPayload: logData.UberFreightPayload,
+          livePayload: logData.LiVePayload,
+          subjectLine: `Customer: ${get(uberPayload, 'tenderInformation.billToName', '')} is not configured`,
+        }),
+        fromEmail: FROM_EMAIL,
+        toEmail: TO_EMAIL.split(','),
+        subject: getEmailSubject({ freightId: logData.FreightId, type: 'ERROR' }),
+      });
+
+      return {
+        statusCode: 400,
+        body: JSON.stringify(
+          {
+            message: `Customer: ${get(uberPayload, 'tenderInformation.billToName', '')} is not configured, please contact customer support.`,
+          },
+          null,
+          2
+        ),
+      };
+    }
+
     livePayload.customer_id = billToCustomer;
 
     const rates = get(uberPayload, 'financialParties[0].financialCharges', []).map(
