@@ -238,6 +238,13 @@ function getDifferentFields({ previousPayload, currentPayload }) {
   return differences;
 }
 
+function getCustomerDetails({ customerDetails }) {
+  const salespersonId = _.get(customerDetails, 'salesperson_id');
+  const operationsRep = _.get(customerDetails, 'operations_rep');
+  const operationsRep2 = _.get(customerDetails, 'operations_rep2');
+  return { salespersonId, operationsRep, operationsRep2 };
+}
+
 module.exports = {
   getFormattedTimestamp,
   getExpirationTimestamp,
@@ -250,4 +257,5 @@ module.exports = {
   getEmailSubject,
   getExistingPayload,
   getDifferentFields,
+  getCustomerDetails,
 };

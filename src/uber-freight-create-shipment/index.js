@@ -15,6 +15,7 @@ const {
   getEmailSubject,
   getExistingPayload,
   getDifferentFields,
+  getCustomerDetails,
 } = require('./helper');
 const { dynamoInsert } = require('../shared/dynamo');
 const { sendMailWithoutAttachment } = require('../shared/helper');
@@ -24,7 +25,6 @@ const { LOG_TABLE, FROM_EMAIL, TO_EMAIL } = process.env;
 const logData = {
   FreightId: 'NULL',
   Timestamp: getFormattedTimestamp(new Date()),
-  // Expiration: getExpirationTimestamp(7),
   UberFreightPayload: '',
   LiVePayload: {},
   LiVeResponse: '',
@@ -54,7 +54,7 @@ module.exports.handler = async (event) => {
       filter(
         get(uberPayload, 'modeExecution.freights[0].lineItems'),
         (data) => get(data, 'hazmat') === true
-      ).length >= 0
+      ).length > 0
     ) {
       livePayload.hazmat = true;
     }
@@ -286,6 +286,16 @@ module.exports.handler = async (event) => {
     }));
     // Update the movements array in the response
     set(createShipmentRes, 'movements', updatedMovements);
+
+    // Add salesperson_id operations_rep operations_rep2 in then update payload
+    const customerDetails = get(createShipmentRes, 'customer', {});
+    const { operationsRep, operationsRep2, salespersonId } = getCustomerDetails({
+      customerDetails,
+    });
+
+    if (operationsRep) set(createShipmentRes, 'operations_rep', operationsRep);
+    if (operationsRep2) set(createShipmentRes, 'operations_rep2', operationsRep2);
+    if (salespersonId) set(createShipmentRes, 'customer_rep', salespersonId);
 
     const updateResponse = await updateOrders({ payload: createShipmentRes });
     logData.LiVeResponse = updateResponse;
